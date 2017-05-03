@@ -433,32 +433,55 @@ The three files- en_US.blogs, en_US.news and en_US.twitter were all cleaned for 
 - Replace repetitive punctuation (/./,/'/!/?) with single punctuation
 - Capitalize first person "I", capitalize first letter of a sentence(Letters that follow a ./!/?)or row, trim sentences.
 
-I would like for some punctutation to remain in the corpus to train the model on grammatical correctness.
+I would like for some punctutation to remain in the corpus to train the model on grammatical correctness. I noticed some words are joined without any clear delimiters such as "#NeedACInSchool". While I'd like to attempt splitting these phrases into individual words such as "Need AC in School", I am leaving these words and proper nouns found in the document(s) to be sparsed out. The cleaned corpus is saved in a folder and it is this data that will used for exploratory analysis. For the purposes of faster processing on a regular PC with limited memory, the clean function broke down the large corpuses into smaller files. This reduced the processing time significantly by at least 80%.
 
-I noticed some words are joined without any clear delimiters such as "#NeedACInSchool". While I'd like to attempt splitting these phrases into individual words such as "Need AC in School", I am leaving these words and proper nouns found in the document(s) to be sparsed out.
-
-The cleaned corpus is saved in a folder and it is this data that will used for exploratory analysis. For the purposes of faster processing on a regular PC with limited memory, the clean function broke down the large corpuses into smaller files. This reduced the processing time significantly by at least 80%.
-
-While the data clean up organized the data for most part there were still issues suc as proper nouns and spelling errors, merged words that contaminated the data. Sparsing the the phrases helped eliminate most of these issues. While here might still be some remnats of such issues, the probability of such occurence will quite low and will not impede the prediction model. 
+While the data clean up organized the data for most part there were still issues such as proper nouns and spelling errors, merged words that contaminated the data. Sparsing the the phrases helped eliminate most of these issues. While here might still be some remnats of such issues, the probability of such occurence will quite low and will not impede the prediction model. 
 
 *Considerations*
 
 - Some words are more frequent than others - what are the distributions of word frequencies?
-Addressed by the Frequency chart
+* Addressed by the Frequency chart
 
 - What are the frequencies of 2-grams and 3-grams in the dataset?
-Addressed by the Frequency charts
+
+* Addressed by the Frequency charts
 
 - How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%?
-Addressed by the number of unique words and the percentage
+
+* Addressed by the number of unique words and the percentage
 
 - How do you evaluate how many of the words come from foreign languages?
 Addressed by the languages list
 
 - Can you think of  to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?
+
 * Stemming is one way to using a smaller number of words in the dictionary to cover th same number of phrases. 
 * Sparsing words that are not frequent is another way to reduce data that must be maintained.
-* One way to increase the base is by capturing the phrases as part of user keystrokes and compling them to increase the n gram base. While the data from the keystrokes may already exist, for these phrases, only the frequency would increase. while this is not built into my applciation, it would definitely be a consideration for future enhancements.
+* One way to increase the base is by using smoothing techniques
+
+- How can you efficiently store an n-gram model (think Markov Chains)?
+
+* The n-grams phrases are split into two parts: the last word of the phrase and the preceding word(s) in the phrase. For instance, a 3-gram phrase "the apple tree" is stored as "the apple" and "tree" along with the frequency of the phrase. This way, anytime the user types "the apple", the word "tree" will be suggested as a follow up word.
+
+- How can you use the knowledge about word frequencies to make your model smaller and more efficient?
+
+* The model I have chosen, allows me to quickly select a small list of possibly relevant word suggestions for the user to select from. Typically the suggestions will be limited to 3 or 4 words and picked up based on the highest frequencies. 
+
+- How many parameters do you need (i.e. how big is n in your n-gram model)?
+
+* I have chosen to limit my n-grams to 3-grams. I believe this is sufficient n-grams to predict the follow up words.  This way I believe I will be able to predict the words quickly and still be able to maintain a smaller model.I typically expect to use one type of n-gram (bi-grams) for the most part. This provides a consistent pattern, The unigrams are useful to predict the start of a sentence. The tri-grams are useful to provide additional context to the phrase in the event the phrase is unobserved qand build additional pattern(s).
+
+- Can you think of simple ways to "smooth" the probabilities (think about giving all n-grams a non-zero probability even if they aren't observed in the data)?
+
+* One approach that comes to mind, to predict unobserved data, is to use other n-grams to predict the word. I typically expect to use one type of n-gram (tri-grams) for the most part. The unigrams are useful to predict the start of a sentence. I expect bi-grams and unigrams are useful to provide additional context to the phrase in the event the phrase is unobserved. Further analysis of the model, will provide me a firmer approach to address unobserved data.
+
+- How do you evaluate whether your model is any good?
+
+* Training and testing the model to predict the words is a good approach to evaluating the model. 
+
+- How can you use backoff models to estimate the probability of unobserved n-grams?
+
+* I believe the Kneser-Ney smoothing model best fits my approach to smoothing for unobserved data. This technique uses the an absolute discounting and generalizing the probabilities across n-grams in order to account for unobserved data.
 
 **Environment:**
 1. OS: Windows 10; HW: Surface Pro 4 tablet; Tool: R version 3.3.3; R Studio version 1.0.136; Publishing tool: RPubs, HTML
