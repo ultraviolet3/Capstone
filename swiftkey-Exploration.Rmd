@@ -1,0 +1,466 @@
+---
+title: "Coursera Data Science CapStone- SwiftKey- Processing & Exploration"
+output: 
+  
+  html_document:
+    fig_height: 28
+    fig_width: 42
+    keep_md: yes
+---
+**Executive Summary**
+SwiftKey is an input method for Android and iOS devices, such as smartphones and tablets. SwiftKey uses a blend of artificial intelligence technologies that enable it to predict the next word the user intends to type.SwiftKey learns from previous SMS messages and output predictions based on currently input text and what it has learned.
+
+This part of the project deals with cleaning to be able to prepare the data for exploration and analysis of the content to determine how best to use it for predictive analysis.
+
+The purposes this portion of the code is to enable faster processing especially on a regular PC with limited memory. 
+```{r echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+Lib=function() {
+  library(rJava)
+  library(knitr)
+  library(plyr)
+  library(RSQLite)
+  library(DBI)
+  library(dplyr)
+  library(tidyr)
+  library(tm)
+  library(slam)
+  library(NLP)
+  library(SnowballC)
+  library(RColorBrewer)
+  library(ngram)
+  library(magrittr)
+  library(wordcloud)
+  library(ggplot2)
+  library(stringi)
+  library(stringr)
+  library(gsubfn)
+  library(quanteda)
+  library(qdap)
+  library(textcat)
+  library(qdapRegex)
+  library(gridExtra)
+  library(cowplot)
+  library(RWeka)
+  library(XLConnect)
+  memory.limit(100000000)
+}
+```
+**Functions** 
+
+*Utility functions*
+```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+#File Loading
+Loading=function(folder,tf) {
+    wd=getwd()
+    zfile="Coursera-SwiftKey.zip"
+    url="https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+    folder=paste(wd,folder,sep="/")
+    zfile=paste(wd,zfile,sep="/")
+    if (!dir.exists(folder)) {
+        download.file(url,zfile)
+        unzip(zfile)}
+    docs = VCorpus(DirSource(folder,mode="text",recursive=tf),readerControl = list(reader=readPlain,language = "en"))
+    docs
+}
+#Piecing data for faster processing and to optimize use of memory
+brkdata=function(data,folder=dest,fn,nr) {
+    x=length(data)
+    i=0
+    j=0
+    folder=paste(getwd(),folder,sep="/")
+    while (i < x) {
+        j=j+1
+        pdata=piececorp(data,nr)
+        p=length(pdata)
+        i=i+p
+        data=data[-(1:p)]
+        fn1=paste(fn,"_",j,".txt",sep="")
+        fpath=paste(folder,fn,fn1,sep="/")
+        write.table(pdata,fpath,row.names=FALSE,quote=FALSE,col.names=FALSE)
+    }
+}
+#Piecing data for faster processing and to optimize use of memory
+piececorp=function(data,nr) {
+    l=length(data)
+    if (l>=nr)
+        pdata=data[1:nr]
+    else
+        pdata=data[1:l]
+    pdata
+}
+piecedf=function(data,nr) {
+    l=nrow(data)
+    if (l>=nr)
+        pdata=data[1:nr,]
+    else
+        pdata=data[1:l,]
+    pdata
+}
+#Clean memory
+cleanmem=function(data) {
+    rm(objects=data)
+    gc()
+    xlcFreeMemory()
+}
+
+```
+*Cleaning functions*
+```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+clean=function(data) {
+    data=rm_email(data) #remove emails
+    data=rm_emoticon(data) #remove emoticons
+    data=rm_citation(data) #remove citation
+    data=rm_title_name(data) #remove title
+    data=rm_abbreviation(data) #remove abbreviations
+    data=rm_date(data) #remove dates
+    data=rm_non_ascii(data) #remove non-ascii characters
+    data=gsubfn("http[^ ]*|www[^ ]*", "",data) #removing URLs
+    data=tolower(data) #convert to lower
+    data=pclean(data) #remove profanity
+    data=removeNumbers(data) #remove numbers
+    data=rm_repeated_characters(data) #remove repeititve characters
+    data=gsubfn("[][#$%()`*:;\"\\+\\&\\/<=>@^_|~{}=\\-]","",data) # replacing special characters
+    data=gsubfn("\\.+|\\s+\\.+", ".",data) #replace repetitive periods with a single period
+    data=gsubfn("\\?+|\\s+\\?+", "?",data) #replace repetitive question marks with a single question mark
+    data=gsubfn("\\'+|\\s+\\'?'+", "'",data) #replace repetitive apostrophes with a single apostrphe
+    data=gsubfn("!+|\\s+!+", "!",data) #replace repetitive exclamation with a single exclamation
+    data=gsubfn(",+|\\s+,+", ",",data) #replace repetitive exclamation with a single exclamation
+    data=gsubfn(" i "," I ",data) #capitalize standalone i
+    data=gsubfn(" i've | ive "," I've ",data)#capitalize i've
+    data=gsubfn(" i'm | im "," I'm ",data)#capitalize i've
+    data=gsubfn(" i'd"," I'd ",data)#capitalize i've
+    data=gsubfn("(^|[.?!][[:space:]])([[:alpha:]])", "\\1\\U\\2", data, perl=TRUE) #capitalize first letter of a sentence or row
+    data=ctrim(data)
+    data
+}
+pclean=function(data,xwords=words) {
+    data=removeWords(data,xwords) #remove profanity
+    data
+}
+cpunt=function(data) {
+    data=gsubfn("[\\.\\,\\!\\'?]","",data) # replacing special characters
+    data=tolower(data) #convert to lower
+    ctrim(data)
+    data
+}
+ctrim=function (data) {
+    ddata=as.data.frame(data)
+    names(ddata)=c("content")
+    ddata=subset(ddata, ddata$content!="") #removing empty rows
+    data=as.character(ddata$content)
+    data=rm_white_multiple(data)
+    data=str_trim(data)
+    data
+}
+```
+*Exploration functions*
+```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+gram=function(data,n=1,n1=3) {
+  data=VCorpus(VectorSource(data))
+  data=tm_map(data,stemDocument)
+  ngram=function(x=data) NGramTokenizer(x, Weka_control(min = n, max = n1))
+  ngmatrix=TermDocumentMatrix(data, control=list(tokenize=ngram))
+  Freq=sort(row_sums(ngmatrix, na.rm=TRUE), decreasing=TRUE) #sorting ngram by frequency (desc)
+  Phrase=names(Freq) #extracting ngram as a list
+  dfgram=as.data.frame(Phrase,stringsAsFactors=FALSE)
+  dfgram$Fq=Freq
+  dfgram
+}
+gramformat=function(data) {
+  data$PrePh= gsubfn(" [[:alpha:]]*$", replacement = "",as.character(data$Phrase)) #extract pre-phrase of ngram
+  data$Word= stri_extract_last_words(data$Phrase) #extract last phrase of ngram
+  nval=function(x) y=stri_stats_latex(x)[4]
+  nv=unname(sapply(data$Phrase,nval))
+  data$NGram=as.integer(nv)
+  row.names(data)= NULL #eliminating row names
+  data
+}
+#Queries
+sqlg=function(df) {
+  squery="INSERT INTO gramtr VALUES ($Phrase, $PrePh, $Word, $Freq, $NGram)"
+  dbins(squery, df)
+}
+sqlt=function(df) {
+    squery="INSERT INTO temp VALUES ($Phrase, $Freq)"
+    dbins(squery, df)
+}
+dbins=function(sql, df)  {
+  dbBegin(gramdb) #connecting to db
+  dbGetPreparedQuery(gramdb, sql, bind.data = df)
+  dbCommit(gramdb) #write to db
+}
+
+dbclose=function() {
+  dbRemoveTable(gramdb,"gramtr")
+  dbRemoveTable(gramdb,"temp")
+  dbDisconnect(gramdb)
+}
+```
+*Analysis functions*
+```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+stats=function(data) {
+    Sents=length(data)
+    Schars=as.integer(lapply(data,nchar))
+    Tchars=sum(Schars)
+    samp=cbind(data,Schars)
+    lsent=head(arrange(as.data.frame(samp),desc(Schars)),1)
+    lsChar=lsent$Schars
+    stat=as.data.frame(cbind(Sents,Tchars,lsChar))
+    stat
+}
+gramplot=function (db) {
+  sqlsch=paste("SELECT * FROM gramtr WHERE NGram=1 ORDER BY Freq DESC LIMIT 30", sep="")
+  res1=dbGetQuery(gramdb, sqlsch)
+  res1=head(res1[order(-res1$Freq),],30)
+  sqlsch=paste("SELECT * FROM gramtr WHERE NGram=2 ORDER BY Freq DESC LIMIT 30", sep="")
+  res2=dbGetQuery(gramdb, sqlsch)
+  res2=head(res2[order(-res2$Freq),],30)
+  sqlsch=paste("SELECT * FROM gramtr WHERE NGram=3 ORDER BY Freq DESC LIMIT 30", sep="")
+  res3=dbGetQuery(gramdb, sqlsch)
+  res3=head(res3[order(-res3$Freq),],30)
+
+  p1=gplot(res1,1)
+  p2=gplot(res2,2)
+  p3=gplot(res3,3)
+  print(p1)
+  print(p2)
+  print(p3)
+ # grid.arrange(p1, p2, p3,newpage = TRUE)
+}
+gplot=function(res,n) {
+  if (n==2) fillc="#f5f500"
+  else if (n==3) fillc="#d98cb3"
+  else if (n==4) fillc="#ffff80"
+  else fillc="#d9ffb3"
+  mtitle=paste("30 Most Frequent Words in",n,"gram",sep=" ")
+  xtitle=paste("Words for n-gram= ",n,sep="")
+  bplot=ggplot(res, aes(x=reorder(res$PrePh, res$Freq), y=reorder(res$Freq, res$Freq), fill=res$Freq))
+  bplot=bplot + geom_bar(stat="identity", fill=fillc,color="#A0A0A0",width=1)
+  bplot=bplot + ggtitle(mtitle)
+  bplot=bplot + labs(x="Phrase",y="Frequency")
+  bplot=bplot + xlab(xtitle)
+  bplot=bplot + ylab("Frequency\n")
+  bplot=bplot + guides(fill=FALSE)
+  bplot=bplot + theme(plot.title = element_text(size=52),axis.text.y = element_text(size = 30,hjust=1), axis.text.x = element_text(size=30,angle=90, hjust=1), axis.title.x=element_text(size = 50), axis.title.y=element_text(size = 50),panel.background = element_rect(fill = "#260033"),panel.grid.major = element_line(color="#A0A0A0"),panel.grid.minor = element_line(color="#A0A0A0"))
+  bplot=bplot + geom_text(aes(label=paste(res$Word,res$Freq,sep="-")), size=10,hjust=1)
+  bplot=bplot +  coord_flip()
+  bplot
+}
+```
+
+*Execute functions*
+```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+execbreak=function(sour,dest,n,fname,tf,nr) {
+    data=Loading(sour,tf)
+    data=data[n][[1]]$content
+    cleanmem(docs)
+    brkdata(data,dest,fname,nr)
+}
+execclean=function(data=docs,dest,fn) {
+    n=length(data)
+    i=0
+    while (i < n) {
+        i=i+1
+        pdata=data[i][[1]]$content
+        fn1=paste(fn,"_",i,".txt",sep="")
+        dest0=paste(dest,fn,sep="/")
+        fpath=paste(dest0,fn1,sep="/")
+        pdata=as.character(lapply(pdata,clean))
+        write.table(pdata,fpath,row.names=FALSE,quote=FALSE,col.names=FALSE)
+    }
+}
+execstat=function(sour,fn,tf) {
+    data=Loading(paste(sour,fn,sep="/"),tf)
+    n=length(data)
+    cleanmem(docs)
+    i=0
+    alls=data.frame()
+    while (i < n) {
+        i=i+1
+        data0=data[i][[1]]$content
+        s=stats(data0)
+        alls=rbind(alls,s)
+    }
+    ID=paste("en_US.",fn,sep="")
+    Sents=sum(as.numeric(alls$Sent))
+    Tchars=sum(as.numeric(alls$Tchars))
+    lsChar=max(as.integer(alls$lsChar))
+    stat=as.data.frame(cbind(ID,Sents,Tchars,lsChar))
+    names(stat)=c("ID","Total_Lines","Total_Char","Char_Longest_Line")
+    stat
+}
+execgram=function(data=docs,n=1,n1=3,nr,sp) {
+  l=length(data)
+  i=0
+  gdata=data.frame()
+  while (i < l) {
+    i=i+1
+    pdata=data[i][[1]]$content
+    pdata=cpunt(pdata)
+    pdata=gram(pdata,n,n1)
+    sqlt(pdata)
+  }
+  sqlgrp=paste("SELECT Phrase As Phrase, Sum(Freq) As Freq FROM temp GROUP BY Phrase", sep="")
+  gdata=dbGetQuery(gramdb, sqlgrp)
+  print("Number of n-grams before sparsing:")
+  print(nrow(gdata))
+  gdata=subset(gdata, (gdata$Freq>sp)) #Removing sparse terms
+  print("Number of n-grams after sparsing:")
+  print(nrow(gdata))
+  cleanmem(docs)
+  execgramdb(gdata,nr)
+}
+execgramdb=function (data,nr) {
+  l=nrow(data)
+  i=0
+  gdata=data.frame()
+  while (i < l) {
+    pdata=piecedf(data,nr)
+    n=nrow(pdata)
+    i=i+n
+    data=data[-(1:n),]
+    pdata=gramformat(pdata)
+    gdata=rbind(gdata,pdata)
+  }
+  gram1=subset(gdata, (gdata$NGram==1))
+  sqlg(gdata)
+  write.table(gdata,paste(getwd(),"final/en_USgrams/grams.txt",sep="/"),sep="|",row.names=FALSE)
+  gram1
+}
+execanalyze=function(data) {
+  uwords=unique(data$Phrase)
+  nuwords=((length(uwords)/length(data))*100)
+  uwordtbl=c(round(length(data)),round(length(uwords)),round(nuwords,2))
+  names(uwordtbl)=c("Total Words","Unique Words","% of unique words")
+  cat("Unique words:","\n")
+  print(uwordtbl)
+  lang=as.data.frame(as.character(lapply(data$Phrase,textcat)))
+  names(lang)="Lang"
+  lang=lang %>% group_by(as.character(Lang)) %>% summarise(Total=length(Lang))
+  names(lang)=c("Lang","Total_Words")
+  lang=arrange(lang, -Total_Words)
+  cat("Top 30 Languages for words in the corpus","\n")
+  print(as.matrix(lang))
+  gramplot(gramdb)
+  dbclose()
+}
+```
+```{r eval=TRUE,echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+  Lib()
+```
+**Execution**
+```{r eval= FALSE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+ execbreak("final/en_US","final/en_USraws",1,"blogs",FALSE,10000)
+ execbreak("final/en_US","final/en_USraws",2,"news",FALSE,10000)
+ execbreak("final/en_US","final/en_USraws",3,"twitter",FALSE,10000)
+ 
+ myw=Loading("final/words",FALSE)
+ words=as.character(strsplit(myw[[1]]$content,"\n"))
+ words=ctrim(words)
+ cleanmem(myw)
+
+ docs=Loading("final/en_USraws/blogs",TRUE)
+ execclean(docs,"final/en_UScleans","blogs")
+ docs=Loading("final/en_USraws/news",TRUE)
+ execclean(docs,"final/en_UScleans","news")
+ docs=Loading("final/en_USraws/twitter",TRUE)
+ execclean(docs,"final/en_UScleans","twitter")
+ cleanmem(docs)
+```
+```{r eval=TRUE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+ statb=data.frame()
+ stata=data.frame()
+ sb=execstat("final/en_USraws","blogs",FALSE)
+ sa=execstat("final/en_UScleans","blogs",FALSE)
+ statb=rbind(statb,sb)
+ stata=rbind(stata,sa)
+ sb=execstat("final/en_USraws","news",FALSE)
+ sa=execstat("final/en_UScleans","news",FALSE)
+ statb=rbind(statb,sb)
+ stata=rbind(stata,sa)
+ sb=execstat("final/en_USraws","twitter",FALSE)
+ sa=execstat("final/en_UScleans","twitter",FALSE)
+ statb=rbind(statb,sb)
+ stata=rbind(stata,sa)
+ cat("Stats before data tidying","\n")
+ print(statb)
+ cat("Stats after data tidying","\n")
+ print(stata)
+ cleanmem(statb)
+ cleanmem(stata)
+```
+```{r eval= FALSE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+ docs=Loading("final/en_UScleans",TRUE)
+```
+```{r eval= TRUE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+ gramdb= dbConnect(RSQLite::SQLite())
+ dbSendQuery(conn=gramdb,
+            "CREATE TABLE gramtr
+            (Phrase TEXT,
+            PrePh TEXT,
+            Word TEXT,
+            Freq INTEGER,
+            NGram INTEGER)")
+ dbSendQuery(conn=gramdb,
+            "CREATE TABLE temp
+            (Phrase TEXT,
+            Freq INTEGER)")
+```
+```{r eval= FALSE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+ ng=execgram(docs,1,3,10000,50)
+```
+```{r eval= TRUE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+ temp=read.table(paste(getwd(),"final/en_USgrams/grams.txt",sep="/"),sep="|",header=TRUE)
+ ng=subset(temp,temp$NGram==1)
+ sqlg(temp)
+```
+```{r eval= TRUE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+ execanalyze(ng)
+```
+
+**Result:** 
+*Observation*
+Objective of the project is to use the content of the corpus to predict the next word in a sentence. Given this objective the corpuses must be cleaned for the following observations in order to have a clean grammatically correct sentences that are in common use:
+
+1) Remove Profanity
+2) Remove Puntuations, while these are accepted as grammatically correct, punctuations are added to sentences in order to highlight the circumstances and to allow the reader to infer the situation. Since we are unaware of the circumstances and sitations of the user, at this time, most punctuations are removed while maintaining a few that are common across different circumstances. These punctuations include, period, comman, exclamation, apostrophes and question marks.
+4) Remove unnecessary spaces and white spaces, repeated letters in order to lend readability and accuracy while predicting.
+
+*Pre-processing*
+The three files- en_US.blogs, en_US.news and en_US.twitter were all cleaned for the following:
+- Remove emails, emoticons, citation, title, abbreviations, dates, non-ascii characters, removing URLs, profanity, numbers, repeititve characters, puntuations except (./,/'/!/?), white spaces
+- Convert to lower in order to have a consistent casing
+- Replace repetitive punctuation (/./,/'/!/?) with single punctuation
+- Capitalize first person "I", capitalize first letter of a sentence(Letters that follow a ./!/?)or row, trim sentences.
+
+I would like for some punctutation to remain in the corpus to train the model on grammatical correctness.
+
+I noticed some words are joined without any clear delimiters such as "#NeedACInSchool". While I'd like to attempt splitting these phrases into individual words such as "Need AC in School", I am leaving these words and proper nouns found in the document(s) to be sparsed out.
+
+The cleaned corpus is saved in a folder and it is this data that will used for exploratory analysis. For the purposes of faster processing on a regular PC with limited memory, the clean function broke down the large corpuses into smaller files. This reduced the processing time significantly by at least 80%.
+
+While the data clean up organized the data for most part there were still issues suc as proper nouns and spelling errors, merged words that contaminated the data. Sparsing the the phrases helped eliminate most of these issues. While here might still be some remnats of such issues, the probability of such occurence will quite low and will not impede the prediction model. 
+
+*Considerations*
+
+- Some words are more frequent than others - what are the distributions of word frequencies?
+Addressed by the Frequency chart
+
+- What are the frequencies of 2-grams and 3-grams in the dataset?
+Addressed by the Frequency charts
+
+- How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%?
+Addressed by the number of unique words and the percentage
+
+- How do you evaluate how many of the words come from foreign languages?
+Addressed by the languages list
+
+- Can you think of  to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?
+* Stemming is one way to using a smaller number of words in the dictionary to cover th same number of phrases. 
+* Sparsing words that are not frequent is another way to reduce data that must be maintained.
+* One way to increase the base is by capturing the phrases as part of user keystrokes and compling them to increase the n gram base. While the data from the keystrokes may already exist, for these phrases, only the frequency would increase. while this is not built into my applciation, it would definitely be a consideration for future enhancements.
+
+**Environment:**
+1. OS: Windows 10; HW: Surface Pro 4 tablet; Tool: R version 3.3.3; R Studio version 1.0.136; Publishing tool: RPubs, HTML
+4. Data: With thanks to source: http://www.swiftkey.com, http://www.coursera.org, https://www.jhu.edu/. Reference: www.stackoverflow.com 
+6. Analyst: Uma Venkataramani; Date of Analysis: May 2017 
