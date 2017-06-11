@@ -6,6 +6,7 @@ output:
     fig_height: 28
     fig_width: 42
     keep_md: yes
+    number_sections: yes
 ---
 **Executive Summary**
 SwiftKey is an input method for Android and iOS devices, such as smartphones and tablets. SwiftKey uses a blend of artificial intelligence technologies that enable it to predict the next word the user intends to type.SwiftKey learns from previous SMS messages and output predictions based on currently input text and what it has learned.
@@ -50,10 +51,12 @@ Lib=function() {
 *Utility functions*
 ```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
 #File Loading
-Loading=function(folder,tf) {
+Loading=function(folder,tf,zfile,url) {
     wd=getwd()
-    zfile="Coursera-SwiftKey.zip"
-    url="https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+    if (missing(zfile)) {
+    zfile="Coursera-SwiftKey.zip" }
+    if (missing(url)) {
+    url="https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip" }
     folder=paste(wd,folder,sep="/")
     zfile=paste(wd,zfile,sep="/")
     if (!dir.exists(folder)) {
@@ -63,7 +66,7 @@ Loading=function(folder,tf) {
     docs
 }
 #Piecing data for faster processing and to optimize use of memory
-brkdata=function(data,folder=dest,fn,nr) {
+brkfile=function(data,folder=dest,fn,nr) {
     x=length(data)
     i=0
     j=0
@@ -107,92 +110,107 @@ cleanmem=function(data) {
 *Cleaning functions*
 ```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
 clean=function(data) {
-    data=rm_email(data) #remove emails
-    data=rm_emoticon(data) #remove emoticons
-    data=rm_citation(data) #remove citation
-    data=rm_title_name(data) #remove title
-    data=rm_abbreviation(data) #remove abbreviations
-    data=rm_date(data) #remove dates
-    data=rm_non_ascii(data) #remove non-ascii characters
-    data=gsubfn("http[^ ]*|www[^ ]*", "",data) #removing URLs
-    data=tolower(data) #convert to lower
-    data=pclean(data) #remove profanity
-    data=removeNumbers(data) #remove numbers
-    data=rm_repeated_characters(data) #remove repeititve characters
-    data=gsubfn("[][#$%()`*:;\"\\+\\&\\/<=>@^_|~{}=\\-]","",data) # replacing special characters
-    data=gsubfn("\\.+|\\s+\\.+", ".",data) #replace repetitive periods with a single period
-    data=gsubfn("\\?+|\\s+\\?+", "?",data) #replace repetitive question marks with a single question mark
-    data=gsubfn("\\'+|\\s+\\'?'+", "'",data) #replace repetitive apostrophes with a single apostrphe
-    data=gsubfn("!+|\\s+!+", "!",data) #replace repetitive exclamation with a single exclamation
-    data=gsubfn(",+|\\s+,+", ",",data) #replace repetitive exclamation with a single exclamation
-    data=gsubfn(" i "," I ",data) #capitalize standalone i
-    data=gsubfn(" i've | ive "," I've ",data)#capitalize i've
-    data=gsubfn(" i'm | im "," I'm ",data)#capitalize i've
-    data=gsubfn(" i'd"," I'd ",data)#capitalize i've
-    data=gsubfn("(^|[.?!][[:space:]])([[:alpha:]])", "\\1\\U\\2", data, perl=TRUE) #capitalize first letter of a sentence or row
-    data=ctrim(data)
-    data
+  data=as.character(data[,1])
+  data=rm_email(data) #remove emails
+  data=rm_emoticon(data) #remove emoticons
+  data=rm_citation(data) #remove citation
+  data=rm_title_name(data) #remove title
+  data=rm_abbreviation(data) #remove abbreviations
+  data=rm_date(data) #remove dates
+  data=rm_non_ascii(data) #remove non-ascii characters
+  data=gsubfn("http[^ ]*|www[^ ]*", "",data) #removing URLs
+  data=tolower(data) #convert to lower
+  data=pclean(data) #remove profanity
+  data=removeNumbers(data) #remove numbers
+  data=rm_repeated_characters(data) #remove repeititve characters
+  data=gsubfn("[][#$%()`*:;\\.\\,\\!\\'?\"\\+\\&\\/<=>@^_|~{}=\\-]","",data) # replacing special characters
+  data=ctrim(data)
+  data
 }
-pclean=function(data,xwords=words) {
-    data=removeWords(data,xwords) #remove profanity
-    data
-}
-cpunt=function(data) {
-    data=gsubfn("[\\.\\,\\!\\'?]","",data) # replacing special characters
-    data=tolower(data) #convert to lower
-    ctrim(data)
-    data
+pclean=function(data) {
+  xwords=read.csv(paste(getwd(),"data/words/words.txt",sep="/"),sep="|",header=TRUE)
+  names(xwords)="profanity"
+  data=removeWords(as.character(data),xwords$profanity) #remove profanity
+  data
 }
 ctrim=function (data) {
-    ddata=as.data.frame(data)
-    names(ddata)=c("content")
-    ddata=subset(ddata, ddata$content!="") #removing empty rows
-    data=as.character(ddata$content)
-    data=rm_white_multiple(data)
-    data=str_trim(data)
-    data
+  data=data[!(data=="")]
+  data=rm_white_multiple(data) #Remove extra white spaces
+  data=str_trim(data) #Trim
+  as.data.frame(data)
 }
 ```
 *Exploration functions*
 ```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
 gram=function(data,n=1,n1=3) {
   data=VCorpus(VectorSource(data))
-  data=tm_map(data,stemDocument)
   ngram=function(x=data) NGramTokenizer(x, Weka_control(min = n, max = n1))
-  ngmatrix=TermDocumentMatrix(data, control=list(tokenize=ngram))
+  ngmatrix=TermDocumentMatrix(data, control=list(tokenize=ngram,weighting=weightTf))
   Freq=sort(row_sums(ngmatrix, na.rm=TRUE), decreasing=TRUE) #sorting ngram by frequency (desc)
   Phrase=names(Freq) #extracting ngram as a list
   dfgram=as.data.frame(Phrase,stringsAsFactors=FALSE)
-  dfgram$Fq=Freq
+  dfgram$Freq=Freq
   dfgram
 }
 gramformat=function(data) {
-  data$PrePh= gsubfn(" [[:alpha:]]*$", replacement = "",as.character(data$Phrase)) #extract pre-phrase of ngram
-  data$Word= stri_extract_last_words(data$Phrase) #extract last phrase of ngram
-  nval=function(x) y=stri_stats_latex(x)[4]
-  nv=unname(sapply(data$Phrase,nval))
-  data$NGram=as.integer(nv)
-  row.names(data)= NULL #eliminating row names
-  data
+    data$PrePh= gsubfn(" [[:alpha:]]*$", replacement = "",as.character(data$Phrase)) #extract pre-phrase of ngram
+    data$Word= stri_extract_last_words(data$Phrase) #extract last phrase of ngram
+    row.names(data)= NULL #eliminating row names
+    data
 }
 #Queries
-sqlg=function(df) {
-  squery="INSERT INTO gramtr VALUES ($Phrase, $PrePh, $Word, $Freq, $NGram)"
-  dbins(squery, df)
+sqlgramins=function(df) {
+  sql="INSERT INTO gramtr VALUES ($Phrase, $PrePh, $Word, $Freq, $NGram)"
+  dbins(sql, df)
 }
-sqlt=function(df) {
-    squery="INSERT INTO temp VALUES ($Phrase, $Freq)"
-    dbins(squery, df)
+sqltempins=function(df,tbl) {
+    sql=paste("INSERT INTO ",tbl," VALUES ($Phrase, $Freq, $NGram)",sep="")
+    dbins(sql, df)
 }
+sqlprofins=function(df) {
+    sql=paste("INSERT INTO profanity VALUES ($profanity)",sep="")
+    dbins(sql, df)
+}
+sqlgramsel=function() {
+    sql=paste("SELECT * FROM gramtr", sep="")
+    dbGetQuery(gramdb, sql)
+}
+sqlunisel=function() {
+    sql=paste("SELECT * FROM gramtr WHERE NGram=1", sep="")
+    dbGetQuery(gramdb, sql)
+}
+sqlprofsel=function(data,l) {
+    sql=paste("SELECT * from profanity", sep="")
+    dbGetQuery(gramdb, sql)
+}
+sqlngramsel=function(tbl,g) {
+    sql=paste("SELECT * FROM ",tbl," WHERE NGram=",g," ORDER BY Freq DESC LIMIT 20", sep="")
+    dbGetQuery(gramdb, sql)
+}
+
+sqltempdel=function(i) {
+    sql=paste("DELETE FROM temp WHERE NGram=",i,sep="")
+    dbGetQuery(gramdb,sql) 
+}
+sqlgrpsel=function() {
+    sql=paste("SELECT Phrase As Phrase, Sum(Freq) As Freq,NGram FROM temp1 GROUP BY Phrase", sep="")
+    grdata=dbGetQuery(gramdb, sql)
+}
+sqltemp1del=function() {
+    sql=paste("DELETE FROM temp1",sep="")
+    dbGetQuery(gramdb,sql)
+}
+
 dbins=function(sql, df)  {
   dbBegin(gramdb) #connecting to db
-  dbGetPreparedQuery(gramdb, sql, bind.data = df)
+  dbGetQuery(gramdb, sql, bind.data = df)
   dbCommit(gramdb) #write to db
 }
 
 dbclose=function() {
   dbRemoveTable(gramdb,"gramtr")
   dbRemoveTable(gramdb,"temp")
+  dbRemoveTable(gramdb,"temp1")
   dbDisconnect(gramdb)
 }
 ```
@@ -209,16 +227,12 @@ stats=function(data) {
     stat
 }
 gramplot=function (db) {
-  sqlsch=paste("SELECT * FROM gramtr WHERE NGram=1 ORDER BY Freq DESC LIMIT 30", sep="")
-  res1=dbGetQuery(gramdb, sqlsch)
-  res1=head(res1[order(-res1$Freq),],30)
-  sqlsch=paste("SELECT * FROM gramtr WHERE NGram=2 ORDER BY Freq DESC LIMIT 30", sep="")
-  res2=dbGetQuery(gramdb, sqlsch)
-  res2=head(res2[order(-res2$Freq),],30)
-  sqlsch=paste("SELECT * FROM gramtr WHERE NGram=3 ORDER BY Freq DESC LIMIT 30", sep="")
-  res3=dbGetQuery(gramdb, sqlsch)
-  res3=head(res3[order(-res3$Freq),],30)
-
+  res1=sqlngramsel("gramtr",1)
+  res1=head(res1[order(-res1$Freq),],20)
+  res2=sqlngramsel("gramtr",2)
+  res2=head(res2[order(-res2$Freq),],20)
+  res3=sqlngramsel("gramtr",3)
+  res3=head(res3[order(-res3$Freq),],20)
   p1=gplot(res1,1)
   p2=gplot(res2,2)
   p3=gplot(res3,3)
@@ -229,9 +243,9 @@ gramplot=function (db) {
 }
 gplot=function(res,n) {
   if (n==2) fillc="#f5f500"
-  else if (n==3) fillc="#d98cb3"
-  else if (n==4) fillc="#ffff80"
-  else fillc="#d9ffb3"
+  else if (n==3) fillc="#ce0c6e"
+  else if (n==4) fillc="#11a4ff"
+  else fillc="#7bf402"
   mtitle=paste("30 Most Frequent Words in",n,"gram",sep=" ")
   xtitle=paste("Words for n-gram= ",n,sep="")
   bplot=ggplot(res, aes(x=reorder(res$PrePh, res$Freq), y=reorder(res$Freq, res$Freq), fill=res$Freq))
@@ -254,7 +268,7 @@ execbreak=function(sour,dest,n,fname,tf,nr) {
     data=Loading(sour,tf)
     data=data[n][[1]]$content
     cleanmem(docs)
-    brkdata(data,dest,fname,nr)
+    brkfile(data,dest,fname,nr)
 }
 execclean=function(data=docs,dest,fn) {
     n=length(data)
@@ -289,43 +303,51 @@ execstat=function(sour,fn,tf) {
     names(stat)=c("ID","Total_Lines","Total_Char","Char_Longest_Line")
     stat
 }
-execgram=function(data=docs,n=1,n1=3,nr,sp) {
-  l=length(data)
-  i=0
-  gdata=data.frame()
-  while (i < l) {
-    i=i+1
-    pdata=data[i][[1]]$content
-    pdata=cpunt(pdata)
-    pdata=gram(pdata,n,n1)
-    sqlt(pdata)
-  }
-  sqlgrp=paste("SELECT Phrase As Phrase, Sum(Freq) As Freq FROM temp GROUP BY Phrase", sep="")
-  gdata=dbGetQuery(gramdb, sqlgrp)
-  print("Number of n-grams before sparsing:")
-  print(nrow(gdata))
-  gdata=subset(gdata, (gdata$Freq>sp)) #Removing sparse terms
-  print("Number of n-grams after sparsing:")
-  print(nrow(gdata))
-  cleanmem(docs)
-  execgramdb(gdata,nr)
+execgram=function(data=docs,n=1,n1=3,nr=10000,sp=50) {
+    l=length(data)
+    i=0
+    gdata=data.frame()
+    while (i < l) {
+        i=i+1
+        pdata=data[i][[1]]$content
+        if (n>1 && n1 > 1) {
+            pdata=cstop(pdata)
+        }
+        pdata=gram(pdata,n,n1)
+        nval=function(x) y=stri_stats_latex(x)[4]
+        pdata$NGram=as.integer(unname(sapply(pdata$Phrase,nval)))
+        sqltempins(pdata,"temp")
+    }
+    cleanmem(docs)
+    i=0
+    while (i < (n1+1)) {
+        i=i+1
+        tdata=sqlngramsel(tbl,i)
+        sqltempins(tdata,"temp1")
+        sqltempdel(i)
+        grdata=sqlgrpsel()
+        grdata=subset(grdata, (grdata$Freq>sp))
+        sqltemp1del()
+        gdata=rbind(gdata,grdata)
+    }
+    sqlt(gdata,"temp")
+    cleanmem(grdata)
+    cleanmem(tdata)
+    execgramdb(gdata,nr)
 }
 execgramdb=function (data,nr) {
-  l=nrow(data)
-  i=0
-  gdata=data.frame()
-  while (i < l) {
-    pdata=piecedf(data,nr)
-    n=nrow(pdata)
-    i=i+n
-    data=data[-(1:n),]
-    pdata=gramformat(pdata)
-    gdata=rbind(gdata,pdata)
-  }
-  gram1=subset(gdata, (gdata$NGram==1))
-  sqlg(gdata)
-  write.table(gdata,paste(getwd(),"final/en_USgrams/grams.txt",sep="/"),sep="|",row.names=FALSE)
-  gram1
+    l=nrow(data)
+    i=0
+    gdata=data.frame()
+    while (i < l) {
+        pdata=piecedf(data,nr)
+        n=nrow(pdata)
+        i=i+n
+        data=data[-(1:n),]
+        pdata=gramformat(pdata)
+        gdata=rbind(gdata,pdata)
+    }
+   	sqlgramins(gdata) 
 }
 execanalyze=function(data) {
   uwords=unique(data$Phrase)
@@ -392,10 +414,10 @@ execanalyze=function(data) {
 ```{r eval= FALSE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
  docs=Loading("final/en_UScleans",TRUE)
 ```
-```{r eval= TRUE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
+```{r eval=TRUE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
  gramdb= dbConnect(RSQLite::SQLite())
  dbSendQuery(conn=gramdb,
-            "CREATE TABLE gramtr
+            "CREATE TABLE grams
             (Phrase TEXT,
             PrePh TEXT,
             Word TEXT,
@@ -405,16 +427,33 @@ execanalyze=function(data) {
             "CREATE TABLE temp
             (Phrase TEXT,
             Freq INTEGER)")
+ dbSendQuery(conn=gramdb,
+            "CREATE TABLE temp1
+            (Phrase TEXT,
+            Freq INTEGER)")
+ dbSendQuery(conn=gramdb,
+            "CREATE TABLE profanity
+             (Word TEXT)")
 ```
 ```{r eval= FALSE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
- ng=execgram(docs,1,3,10000,50)
+ execgram(docs,1,1,10000,20)
+ execgram(docs,2,3,10000,20)
 ```
-```{r eval= TRUE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+```{r eval= FALSE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+ gdata=sqlsall()
+ write.table(gdata,paste(getwd(),"final/en_USgrams/grams.txt",sep="/"),sep="|",row.names=FALSE)
+```
+```{r eval= TRUE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}  
  temp=read.table(paste(getwd(),"final/en_USgrams/grams.txt",sep="/"),sep="|",header=TRUE)
  ng=subset(temp,temp$NGram==1)
  sqlg(temp)
 ```
+```{r eval= TRUE, echo=FALSE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+ db=paste(getwd(),"final/data/gramdb.RData",sep="/")
+ save(gramdb,file=db)
+```
 ```{r eval= TRUE, echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE} 
+ ng=sqlsuni()
  execanalyze(ng)
 ```
 
@@ -428,58 +467,58 @@ Objective of the project is to use the content of the corpus to predict the next
 
 *Pre-processing*
 The three files- en_US.blogs, en_US.news and en_US.twitter were all cleaned for the following:
-- Remove emails, emoticons, citation, title, abbreviations, dates, non-ascii characters, removing URLs, profanity, numbers, repeititve characters, puntuations except (./,/'/!/?), white spaces
+- Remove emails, emoticons, citation, title, abbreviations, dates, non-ascii characters, removing URLs, profanity, numbers, repeititve characters, puntuations, white spaces
 - Convert to lower in order to have a consistent casing
-- Replace repetitive punctuation (/./,/'/!/?) with single punctuation
 - Capitalize first person "I", capitalize first letter of a sentence(Letters that follow a ./!/?)or row, trim sentences.
 
-I would like for some punctutation to remain in the corpus to train the model on grammatical correctness. I noticed some words are joined without any clear delimiters such as "#NeedACInSchool". While I'd like to attempt splitting these phrases into individual words such as "Need AC in School", I am leaving these words and proper nouns found in the document(s) to be sparsed out. The cleaned corpus is saved in a folder and it is this data that will used for exploratory analysis. For the purposes of faster processing on a regular PC with limited memory, the clean function broke down the large corpuses into smaller files. This reduced the processing time significantly by at least 80%.
+I noticed some words are joined without any clear delimiters such as "#NeedACInSchool". While I'd like to attempt splitting these phrases into individual words such as "Need AC in School", I am leaving these words and proper nouns found in the document(s) to be sparsed out. The cleaned corpus is saved in a folder and it is this data that will used for exploratory analysis. For the purposes of faster processing on a regular PC with limited memory, the clean function broke down the large corpuses into smaller files. This reduced the processing time significantly by at least 80%.
 
 While the data clean up organized the data for most part there were still issues such as proper nouns and spelling errors, merged words that contaminated the data. Sparsing the the phrases helped eliminate most of these issues. While here might still be some remnats of such issues, the probability of such occurence will quite low and will not impede the prediction model. 
 
 *Considerations*
 
-- Some words are more frequent than others - what are the distributions of word frequencies?
+1) Some words are more frequent than others - what are the distributions of word frequencies?
 * Addressed by the Frequency chart
 
-- What are the frequencies of 2-grams and 3-grams in the dataset?
+2) What are the frequencies of 2-grams and 3-grams in the dataset?
 
 * Addressed by the Frequency charts
 
-- How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%?
+3) How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%?
 
 * Addressed by the number of unique words and the percentage
 
-- How do you evaluate how many of the words come from foreign languages?
+4) How do you evaluate how many of the words come from foreign languages?
 Addressed by the languages list
 
-- Can you think of  to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?
+5) Can you think of  to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?
 
 * Stemming is one way to using a smaller number of words in the dictionary to cover th same number of phrases. 
 * Sparsing words that are not frequent is another way to reduce data that must be maintained.
-* One way to increase the base is by using smoothing techniques
+* Remove stopwords for n-grams greater than 1
+* One way to increase the base is by using smoothing techniques, use dictionary to supplement words and maintain a base of device specific words.
 
-- How can you efficiently store an n-gram model (think Markov Chains)?
+6) How can you efficiently store an n-gram model (think Markov Chains)?
 
 * The n-grams phrases are split into two parts: the last word of the phrase and the preceding word(s) in the phrase. For instance, a 3-gram phrase "the apple tree" is stored as "the apple" and "tree" along with the frequency of the phrase. This way, anytime the user types "the apple", the word "tree" will be suggested as a follow up word.
 
-- How can you use the knowledge about word frequencies to make your model smaller and more efficient?
+7) How can you use the knowledge about word frequencies to make your model smaller and more efficient?
 
 * The model I have chosen, allows me to quickly select a small list of possibly relevant word suggestions for the user to select from. Typically the suggestions will be limited to 3 or 4 words and picked up based on the highest frequencies. 
 
-- How many parameters do you need (i.e. how big is n in your n-gram model)?
+8) How many parameters do you need (i.e. how big is n in your n-gram model)?
 
-* I have chosen to limit my n-grams to 3-grams. I believe this is sufficient n-grams to predict the follow up words.  This way I believe I will be able to predict the words quickly and still be able to maintain a smaller model.I typically expect to use one type of n-gram (bi-grams) for the most part. This provides a consistent pattern, The unigrams are useful to predict the start of a sentence. The tri-grams are useful to provide additional context to the phrase in the event the phrase is unobserved qand build additional pattern(s).
+* I plan to limit my n-grams to 3-grams. I believe that 3-ngram is sufficient n-grams to predict the follow up words.  This way I believe I will be able to predict the words quickly and still be able to maintain a smaller model.I typically expect to use one type of n-gram for the most part. This provides a consistent pattern, The unigrams are useful to predict the start of a sentence. The other grams will provide additional context to the phrase in the event the phrase is unobserved qand build additional pattern(s).
 
-- Can you think of simple ways to "smooth" the probabilities (think about giving all n-grams a non-zero probability even if they aren't observed in the data)?
+9) Can you think of simple ways to "smooth" the probabilities (think about giving all n-grams a non-zero probability even if they aren't observed in the data)?
 
-* One approach that comes to mind, to predict unobserved data, is to use other n-grams to predict the word. I typically expect to use one type of n-gram (tri-grams) for the most part. The unigrams are useful to predict the start of a sentence. I expect bi-grams and unigrams are useful to provide additional context to the phrase in the event the phrase is unobserved. Further analysis of the model, will provide me a firmer approach to address unobserved data.
+* One approach that comes to mind, to predict unobserved data, is to use other n-grams to predict the word. I typically expect to use one type of n-gram (tri-grams) for the most part. The unigrams are useful to predict the start of a sentence. I expect bi-grams and unigrams are useful to provide additional context to the phrase in the event the phrase is unobserved. Further analysis of the model, will provide me a firmer approach to address unobserved data. Another approach is to supplement the n-gram words from a dictionary based on user key strokes.
 
-- How do you evaluate whether your model is any good?
+10) How do you evaluate whether your model is any good?
 
-* Training and testing the model to predict the words is a good approach to evaluating the model. 
+* Training and testing the models on various platforms and devices to predict the words is a good approach to evaluating the model. I am choosing to use my tablet to test the model.
 
-- How can you use backoff models to estimate the probability of unobserved n-grams?
+11) How can you use backoff models to estimate the probability of unobserved n-grams?
 
 * I believe the Kneser-Ney smoothing model best fits my approach to smoothing for unobserved data. This technique uses the an absolute discounting and generalizing the probabilities across n-grams in order to account for unobserved data.
 
