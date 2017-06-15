@@ -1,0 +1,89 @@
+arent|aren't
+cant|can't
+couldnt|couldn't
+didnt|didn't
+doesnt|doesn't
+dont|don't
+hadnt|hadn't
+hasnt|hasn't
+havent|haven't
+hed|he'd
+hell|he'll
+hes|he's
+id|I'd
+ill|I'll
+ill|ill
+im|I'm
+ive|I’ve
+isnt|isn't
+its|it's
+lets|let's
+mustnt|mustn't
+shant|shan't
+shed|she'd
+shell|she'll
+shes|she's
+shouldnt|shouldn't
+thats|that's
+theres|there's
+theyd|they'd
+theyll|they'll
+theyre|they're
+theyve|they've
+wed|we'd
+were|we're
+weve|we've
+werent|weren't
+whatll|what'll
+whatre|what're
+whats|what's
+whatve|what've
+wheres|where's
+whod|who'd
+wholl|who'll
+whore|who're
+whos|who's
+whove|who've
+wont|won't
+wouldnt|wouldn't
+youd|you'd
+youll|you'll
+youre|you're
+youve|you've
+hell|hell
+id|ID
+wed|wed
+were|were
+shell|shell
+shed|shed
+isnt|is not
+arent|are not
+wasnt|was not
+werent|were not
+havent|have not
+hasnt|has not
+hadnt|had not
+wont|will not
+wouldnt|would not
+dont|do not
+doesnt|does not
+didnt|did not
+cant|cannot
+couldnt|could not
+shouldnt|should not
+mightnt|might not
+mustnt|must not
+wouldve|would have
+shouldve|should have
+couldve|could have
+mightve|might have
+mustve|must have
+o|of
+oclock|of the clock
+maam|madam
+neer|never
+ne’er|never
+i|I
+twas|it was
+t’was|it was
+
