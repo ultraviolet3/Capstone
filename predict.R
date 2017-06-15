@@ -7,9 +7,10 @@
 Lib=function() {
   library(rJava)
   library(knitr)
+  library(devtools)
   library(curl)
   library(shiny)
-  library(devtools)
+  library(markdown)
   library(shinydashboard)
   library(plyr)
   library(RSQLite)
@@ -24,25 +25,16 @@ Lib=function() {
   library(stringi)
   library(stringr)
   library(gsubfn)
-  library(e1071)
-  library(ANLP)
   library(tm)
-  library(quanteda)
-  library(qdap)
-  library(qdapRegex)
   library(textcat)
   library(RWeka)
   library(qdapDictionaries)
   library(XLConnect)
   library(rsconnect)
   library(DT)
-  library(markdown)
-  memory.limit(100000000)
-  Sys.setenv(WNHOME = "/usr/local/wordnet-3.0")
-
- #Sys.setenv(WNHOME = "C:/Program Files (x86)/WordNet/2.1/bin")
-  library(wordnet)
-  setDict(file.path("usr", "share", "dict"))
+  library(qdap)
+  library(quanteda)
+  library(qdapRegex)
 }
 #Functions
 ## Helper- Loads corpus for processing
@@ -96,19 +88,6 @@ clean=function(data) {
   data=ctrim(data)
   data
 }
-## Helper- Capitalizing I's in text
-#' @family : Text processing
-#' capclean function: cleans up i-s to I-s. Replaces text such as  "i", "i'm", "i'd" and "i've" to "I", "I'm", "I'd" and "I've" respectively
-#' @param data: Text data to be cleaned
-#' @return cleaned up text in the same class as input
-#'
-capclean=function(data) {
-  data=gsubfn(" i "," I ",data) #capitalize standalone i
-  data=gsubfn(" i've | ive "," I've ",data)#capitalize i've
-  data=gsubfn(" i'm | im "," I'm ",data)#capitalize i've
-  data=gsubfn(" i'd"," I'd ",data)#capitalize i've
-  # data=gsubfn("(^|[.?!][[:space:]])([[:alpha:]])", "\\1\\U\\2", data, perl=TRUE) #capitalize first letter of a sentence or row
-}
 ## Helper- Profanity cleaning
 #' @family : Text processing
 #' pclean function: cleans text for profanity. Requires profanity list loaded to profanity table in gramdb table. Requires DBI, RSQLite
@@ -142,33 +121,6 @@ ctrim=function (data) {
 cap=function(data) {
   if (str_sub(data, -1,-1) %in% c(".","?","!") || str_sub(data, -2,-1) %in% c(". ","? ","! ")) return(TRUE) #Capitalize after end of sentence
   else return(FALSE)
-}
-## Helper- Spell check, keystroke prediction
-#' @family : Text prediction
-#' spellc function: Predicts words based on keystroke
-#' @param data: Keystroke as data
-#' @param mafil: Wordnet search type to perform. Acceptable values are "ContainsFilter", "EndsWithFilter", "ExactMatchFilter","RegexFilter", "SoundFilter", "StartsWithFilter", and "WildcardFilter".
-#' @param nres: Number of results to return. Defaulted to 3 results.
-#' @return Word(s) matching keystroke
-#'
-spellc=function(data,mafil,nres=3) {
-  #setDict("C:/Program Files (x86)/WordNet/2.1/dict")
-  pos=c("NOUN","VERB","ADJECTIVE","ADVERB")
-  len=length(pos)
-  i=1
-  res=as.character
-  while (i <= len) {
-    filter=getTermFilter(mafil, data, TRUE)
-    terms=getIndexTerms(pos[i],nres,filter)
-    rs=sapply(terms, getLemma)
-    res=c(res,rs)
-    i=i+1 }
-  res=as.data.frame(as.character(tail(res, (NROW(res)-1))))
-  names(res)="Word"
-  if (nrow(res)>0) {
-    res=clean(as.data.frame(res))
-  }
-  res
 }
 ## Helper- Break down large text file to smaller files
 #' @family : Text prediction
@@ -270,33 +222,6 @@ gramformat=function(data) {
   row.names(data)= NULL #eliminating row names
   data
 }
-## Helper- Format contractions by adding apostrophe
-#' @family : Text prediction
-#' addapo function: Formats contractions with apostrophe
-#' @param data: Data to add apostrophe to
-#' @return : Returns word(s) formatted with apostrophe
-#'
-addapo=function(data) {
-  c=sqlcontsel(data)
-  if (nrow(c) ==0) { c=data } #Add apostrpohe for contraction words
-  c
-}
-## Helper- Function that reorders combination of character vectors and single values in a list or dataframe to single value dataframe
-#' @family : Text prediction
-#' brkdata1 function: Function that reorders combination of character vectors and single values in a list or dataframe to single value dataframe
-#' @param data: Data to be formatted
-#' @return : Formatted word(s)
-#'
-brkdata1=function(data) {
-  i=1
-  r1=character()
-  while (i <= ncol(data)) {
-    r=data[,i]
-    r1=c(r1,r)
-    i=i+1
-  }
-  r1
-}
 
 ## Helper- Function that calls addapo and capclean
 #' @family : Text prediction
@@ -305,15 +230,14 @@ brkdata1=function(data) {
 #' @return : Formatted word(s)
 #'
 contcapclean=function(data,ptf) {
-  con=sqlcontallsel()
-  c=as.data.frame(data[data$Word %in% con$woApo,])
+  contractions=as.data.frame(read.csv(paste(getwd(),"data/words/contractions.txt",sep="/"),sep="|",header=TRUE))
+  names(contractions)=c("woApo","wApo")
+  c=as.data.frame(data[data[,1] %in% contractions$woApo,])
+  data=as.data.frame(data[!(data[,1] %in% c[,1]),])
   if (!(nrow(c)==0)) {
-    data=as.data.frame(data[!(data$Word %in% con$woApo),]) #Add apostrophe to results (words such as wont, cant etc)
+   rc=as.data.frame(contractions[contractions$woApo %in% as.character(c[,1]),]) #Add apostrophe to results and capitalize the first person "I" (words such as wont, cant etc)
+   data=as.data.frame(c(as.character(data[,1]),as.character(rc[,2])))
   }
-  rc=as.data.frame(lapply(as.character(c[,1]),addapo))
-  r1=brkdata1(rc)
-  data=rbind(data,r1)
-  data=as.data.frame(as.character(lapply(data[,1],capclean))) #Capitalize I's in results (words such a I, I've)
   if (ptf==TRUE) {
     data=as.data.frame(sapply(data[,1],str_to_title)) #Capitalize first letter after end of a sentence
   }
@@ -349,24 +273,7 @@ ngrampred=function(data,ng,nres) {
   else { res=sqlwordsel(data,ng-1,nres) }
   as.data.frame(unique(res$Word))
 }
-## Helper- Predicts keystrokes by calling wordnet function
-#' @family : Text prediction
-#' keypred function: Predicts the word(s) based on keystroke
-#' @param data: Data that must be predicted
-#' @param nres: Number of predicted words (results) to return
-#' @return : Word(s) that match the start of the word
-#'
-keypred=function(data,nres) {
-  res=unique(spellc(data,mafil="StartsWithFilter",nres))
-  names(res)="Word"
 
-  if (nrow(res)==0)  {
-    exit()
-  }
-  else {
-  as.data.frame(unique(res$Word))
-  }
-}
 ## Helper- Executes the functions to produce smaller files of the corpus
 #' @family : Text prediction
 #' execbreak function: Predicts the word(s) based on keystroke
@@ -380,9 +287,15 @@ keypred=function(data,nres) {
 #'
 execbreak=function(sour,dest,n,fname,tf,nr) {
   data=Loading(sour,tf)
-  data=data[n][[1]]$content
-  cleanmem(docs)
-  brkfile(data,dest,fname,nr)
+  if (missing(nr)) {
+    nr=10000
+  }
+  if (length(data[n][[1]])>=nr) {
+    data=data[n][[1]]$content
+    cleanmem(docs)
+    brkfile(data,dest,fname,nr)
+  }
+  else stop()
 }
 ## Helper- Executes the corpus cleaning functions and saves the cleaned files in a destination folder
 #' @family : Text prediction
@@ -418,6 +331,9 @@ execclean=function(data=docs,dest,fn) {
 #' @return : Returns formatted weighted n-grams and loads to a database
 #'
 execgram=function(data=docs,n=1,n1=3,nr=10000,sp=0,wt) {
+  if (missing(nr)) {
+    nr=10000
+  }
   l=length(data)
   i=0
   gdata=data.frame()
@@ -509,15 +425,10 @@ pred=function(data,ng,nres,lc) {
 
   if (lc==" " || newsent==TRUE) {
     res=as.data.frame(ngrampred(data,ng,nres))
+    res=contcapclean(res,puntcap)
+    as.data.frame(unique(res$Word))
   }
-  else {
-    lastw=brkdata(data,1,tail)
-    lastw=clean(as.data.frame(lastw))
-    lastw=as.character(lastw$data)
-    res=as.data.frame(keypred(lastw,nres))
-  }
-  res=contcapclean(res,puntcap)
-  as.data.frame(unique(res$Word))
+  else stop()
 }
 #Queries for exploration
 sqlgramins=function(df) {
@@ -572,28 +483,11 @@ sqlnullsel=function(ng,l) {
   sql=paste("SELECT Word FROM grams WHERE NGram=",ng," ORDER BY Freq DESC LIMIT ",l,  ";",sep="")
   dbGetQuery(gramdb, sql)
 }
-sqlcontsel=function(data) {
-  sql=paste("SELECT wApo from contractions WHERE (woApo='",data,"')",  ";",sep="")
-  dbGetQuery(gramdb, sql)
-}
-sqlcontallsel=function() {
-  sql=paste("SELECT * from contractions;",sep="")
-  dbGetQuery(gramdb, sql)
-}
-#init=function() {
+
 Lib()
 grams=read.table(paste(getwd(),"data/grams.txt",sep="/"),sep="|",header=TRUE)
-contractions=read.csv(paste(getwd(),"data/words/contractions.txt",sep="/"),sep="|",header=TRUE)
-names(contractions)=c("woApo","wApo")
 gramdb<<-dbConnect(RSQLite::SQLite())
 dbWriteTable(gramdb,"grams",grams)
-dbWriteTable(gramdb,"contractions",contractions)
-#}
-
-p=function(data) {
-  data=as.data.frame(data)
-  naiveBayes(PrePh ~ .,data=data)
-}
 
 ui <- dashboardPage(skin = "purple",
  dashboardHeader(title = "Swiftkey Prediction"),

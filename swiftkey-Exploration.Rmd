@@ -265,10 +265,16 @@ gplot=function(res,n) {
 *Execute functions*
 ```{r echo=TRUE,message=FALSE, warning=FALSE,comment=" ",tidy=TRUE,strip.white=FALSE,collapse=TRUE}
 execbreak=function(sour,dest,n,fname,tf,nr) {
+  if (missing(nr)) {
+    nr=10000
+  }
     data=Loading(sour,tf)
+    if (length(data[n][[1]])>nr) {
     data=data[n][[1]]$content
     cleanmem(docs)
     brkfile(data,dest,fname,nr)
+    }
+    else stop()
 }
 execclean=function(data=docs,dest,fn) {
     n=length(data)
@@ -304,6 +310,9 @@ execstat=function(sour,fn,tf) {
     stat
 }
 execgram=function(data=docs,n=1,n1=3,nr=10000,sp=50) {
+    if (missing(nr)) {
+     nr=10000
+  }
     l=length(data)
     i=0
     gdata=data.frame()

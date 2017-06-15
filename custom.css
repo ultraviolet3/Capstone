@@ -1,0 +1,19 @@
+.section .reveal .state-background {
+    background-color: #42bcf4;}
+.section .reveal h1  font-size: 1px;
+    color: red;
+    position: relative;
+    top: 2%;},
+.section .reveal p ul {
+  font-size: 1px;
+    color: black;
+    position: relative;
+    top: 2%;}
+body {
+      background-color: #ebf442;
+      background-position: left;
+      background-attachment: relative;
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+}
+
